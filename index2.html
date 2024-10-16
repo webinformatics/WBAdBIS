@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title>West Bengal Administrative Information System (WBAIS)</title>
+    </head>
+    <body>
+        <div style="padding: 10px;">
+            <label for="districtFilter">District:</label>
+            <select id="districtFilter">
+                <option value="">Select District</option>
+                <!-- Options will be added dynamically -->
+            </select>
+        
+            <label for="subdivisionFilter">Subdivision:</label>
+            <select id="subdivisionFilter">
+                <option value="">Select Subdivision</option>
+                <!-- Options will be added dynamically -->
+            </select>
+        
+            <label for="blockFilter">Block:</label>
+            <select id="blockFilter">
+                <option value="">Select Block</option>
+                <!-- Options will be added dynamically -->
+            </select>
+        
+            <label for="gpFilter">GP:</label>
+            <select id="gpFilter">
+                <option value="">Select GP</option>
+                <!-- Options will be added dynamically -->
+            </select>
+        </div>        
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="data/GP_1.js"></script>
+        <script src="data/Blocks_2.js"></script>
+        <script src="data/Subdivisions_3.js"></script>
+        <script src="data/Districts_4.js"></script>
+        <script>
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[22.20330615329751,85.7160904138485],[24.03833509643216,89.55261300522436]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // add class to format popup if it contains media
+		function addClassToPopupIfMedia(content, popup) {
+			var tempDiv = document.createElement('div');
+			tempDiv.innerHTML = content;
+			if (tempDiv.querySelector('td img')) {
+				popup._contentNode.classList.add('media');
+					// Delay to force the redraw
+					setTimeout(function() {
+						popup.update();
+					}, 10);
+			} else {
+				popup._contentNode.classList.remove('media');
+			}
+		}
+        var title = new L.Control({'position':'topleft'});
+        title.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        title.update = function () {
+            this._div.innerHTML = '<h2>West Bengal Administrative Information System (WBAIS)</h2>';
+        };
+        title.addTo(map);
+        var abstract = new L.Control({'position':'bottomleft'});
+        abstract.onAdd = function (map) {
+            this._div = L.DomUtil.create('div',
+            'leaflet-control abstract');
+            this._div.id = 'abstract'
+                this._div.setAttribute("onmouseenter", "abstract.show()");
+                this._div.setAttribute("onmouseleave", "abstract.hide()");
+                this.hide();
+                return this._div;
+            };
+            abstract.hide = function () {
+                this._div.classList.remove("abstractUncollapsed");
+                this._div.classList.add("abstract");
+                this._div.innerHTML = 'i'
+            }
+            abstract.show = function () {
+                this._div.classList.remove("abstract");
+                this._div.classList.add("abstractUncollapsed");
+                this._div.innerHTML = 'This particular application would provide the users a detailed insights about West Bengal Administrative System.This would be helpful for not only for the students from the field of Geography, Geoinformatics, Political Science, Environmental Science etc, but also the Researchers from the respective domains, Civil Service aspirants, administrators, Planners etc would also be benefitted. <br /><br />The tireless activities, devotion and dedication to the subject and disciplined workplans of a group students under the mentorship of Dr. Ratnadeep Ray from the department of Earth Sciences and Remote Sensing, JIS UNIVERSITY, this application has become possible.  <br /><br />The jewels involved in the complition of this application are:<br /><br />1. Md. Jahid Hossain (Leader)<br />2. Sourav Sen (Leader)<br />3. Atanu Samanta<br />4. Indrajit Paul<br />5. Aiswariya Roy<br />6. Arina Parvin<br />7. Rasonara Porvin';
+        };
+        abstract.addTo(map);
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'meters',
+            secondaryLengthUnit: 'kilometers',
+            primaryAreaUnit: 'sqmeters',
+            secondaryAreaUnit: 'hectares'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OpenStreetMap_0');
+        map.getPane('pane_OpenStreetMap_0').style.zIndex = 400;
+        var layer_OpenStreetMap_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OpenStreetMap_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OpenStreetMap_0;
+        map.addLayer(layer_OpenStreetMap_0);
+        function pop_GP_1(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">District:</th>\
+                        <td>' + (feature.properties['DIST_NAME'] !== null ? autolinker.link(feature.properties['DIST_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Block:</th>\
+                        <td>' + (feature.properties['BLOCK_NAME'] !== null ? autolinker.link(feature.properties['BLOCK_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">GP:</th>\
+                        <td>' + (feature.properties['GP_NAME'] !== null ? autolinker.link(feature.properties['GP_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_GP_1_0() {
+            return {
+                pane: 'pane_GP_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_GP_1');
+        map.getPane('pane_GP_1').style.zIndex = 401;
+        map.getPane('pane_GP_1').style['mix-blend-mode'] = 'normal';
+        var layer_GP_1 = new L.geoJson(json_GP_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_GP_1',
+            layerName: 'layer_GP_1',
+            pane: 'pane_GP_1',
+            onEachFeature: pop_GP_1,
+            style: style_GP_1_0,
+        });
+        bounds_group.addLayer(layer_GP_1);
+        map.addLayer(layer_GP_1);
+        function pop_Blocks_2(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">District:</th>\
+                        <td>' + (feature.properties['DIST_NAME'] !== null ? autolinker.link(feature.properties['DIST_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">C.D. Block:</th>\
+                        <td>' + (feature.properties['BLOCK_NAME'] !== null ? autolinker.link(feature.properties['BLOCK_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">No. of House hold:</th>\
+                        <td>' + (feature.properties['No_HH'] !== null ? autolinker.link(feature.properties['No_HH'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Population:</th>\
+                        <td>' + (feature.properties['TOT_P'] !== null ? autolinker.link(feature.properties['TOT_P'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Male:</th>\
+                        <td>' + (feature.properties['TOT_M'] !== null ? autolinker.link(feature.properties['TOT_M'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Female:</th>\
+                        <td>' + (feature.properties['TOT_F'] !== null ? autolinker.link(feature.properties['TOT_F'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Population within 0 to 6 years:</th>\
+                        <td>' + (feature.properties['P_06'] !== null ? autolinker.link(feature.properties['P_06'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total SC Population:</th>\
+                        <td>' + (feature.properties['P_SC'] !== null ? autolinker.link(feature.properties['P_SC'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total ST Population:</th>\
+                        <td>' + (feature.properties['P_ST'] !== null ? autolinker.link(feature.properties['P_ST'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Literate:</th>\
+                        <td>' + (feature.properties['P_LIT'] !== null ? autolinker.link(feature.properties['P_LIT'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Illiiterate:</th>\
+                        <td>' + (feature.properties['P_ILL'] !== null ? autolinker.link(feature.properties['P_ILL'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Worker:</th>\
+                        <td>' + (feature.properties['TOT_WORK_P'] !== null ? autolinker.link(feature.properties['TOT_WORK_P'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Working Male:</th>\
+                        <td>' + (feature.properties['TOT_WORK_M'] !== null ? autolinker.link(feature.properties['TOT_WORK_M'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Working Female:</th>\
+                        <td>' + (feature.properties['TOT_WORK_F'] !== null ? autolinker.link(feature.properties['TOT_WORK_F'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Mainworker:</th>\
+                        <td>' + (feature.properties['MAINWORK_P'] !== null ? autolinker.link(feature.properties['MAINWORK_P'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Mainworker (Male):</th>\
+                        <td>' + (feature.properties['MAINWORK_M'] !== null ? autolinker.link(feature.properties['MAINWORK_M'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Mainworker (Female):</th>\
+                        <td>' + (feature.properties['MAINWORK_F'] !== null ? autolinker.link(feature.properties['MAINWORK_F'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Blocks_2_0() {
+            return {
+                pane: 'pane_Blocks_2',
+                opacity: 1,
+                color: 'rgba(49,104,232,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Blocks_2');
+        map.getPane('pane_Blocks_2').style.zIndex = 402;
+        map.getPane('pane_Blocks_2').style['mix-blend-mode'] = 'normal';
+        var layer_Blocks_2 = new L.geoJson(json_Blocks_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Blocks_2',
+            layerName: 'layer_Blocks_2',
+            pane: 'pane_Blocks_2',
+            onEachFeature: pop_Blocks_2,
+            style: style_Blocks_2_0,
+        });
+        bounds_group.addLayer(layer_Blocks_2);
+        map.addLayer(layer_Blocks_2);
+        function pop_Subdivisions_3(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">District:</th>\
+                        <td>' + (feature.properties['DIST_NAME'] !== null ? autolinker.link(feature.properties['DIST_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Sub-Division:</th>\
+                        <td>' + (feature.properties['Name'] !== null ? autolinker.link(feature.properties['Name'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Subdivisions_3_0() {
+            return {
+                pane: 'pane_Subdivisions_3',
+                opacity: 1,
+                color: 'rgba(37,82,12,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Subdivisions_3');
+        map.getPane('pane_Subdivisions_3').style.zIndex = 403;
+        map.getPane('pane_Subdivisions_3').style['mix-blend-mode'] = 'normal';
+        var layer_Subdivisions_3 = new L.geoJson(json_Subdivisions_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Subdivisions_3',
+            layerName: 'layer_Subdivisions_3',
+            pane: 'pane_Subdivisions_3',
+            onEachFeature: pop_Subdivisions_3,
+            style: style_Subdivisions_3_0,
+        });
+        bounds_group.addLayer(layer_Subdivisions_3);
+        map.addLayer(layer_Subdivisions_3);
+        function pop_Districts_4(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">District:</th>\
+                        <td>' + (feature.properties['DIST_NAME'] !== null ? autolinker.link(feature.properties['DIST_NAME'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Districts_4_0() {
+            return {
+                pane: 'pane_Districts_4',
+                opacity: 1,
+                color: 'rgba(248,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Districts_4');
+        map.getPane('pane_Districts_4').style.zIndex = 404;
+        map.getPane('pane_Districts_4').style['mix-blend-mode'] = 'normal';
+        var layer_Districts_4 = new L.geoJson(json_Districts_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Districts_4',
+            layerName: 'layer_Districts_4',
+            pane: 'pane_Districts_4',
+            onEachFeature: pop_Districts_4,
+            style: style_Districts_4_0,
+        });
+        bounds_group.addLayer(layer_Districts_4);
+        map.addLayer(layer_Districts_4);
+        // Populate dropdowns with unique options from the geojson data
+function populateDropdown(layer, property, dropdownId) {
+    var uniqueValues = new Set();
+    layer.eachLayer(function(featureLayer) {
+        var value = featureLayer.feature.properties[property];
+        if (value) {
+            uniqueValues.add(value);
+        }
+    });
+
+    var dropdown = document.getElementById(dropdownId);
+    uniqueValues.forEach(function(value) {
+        var option = document.createElement("option");
+        option.value = value;
+        option.text = value;
+        dropdown.add(option);
+    });
+}
+
+// Apply the filtering based on dropdown selection
+function applyFilter(layer, property, dropdownId) {
+    var selectedValue = document.getElementById(dropdownId).value;
+    layer.eachLayer(function(featureLayer) {
+        if (selectedValue === "" || featureLayer.feature.properties[property] === selectedValue) {
+            featureLayer.setStyle({fillOpacity: 1, opacity: 1});
+        } else {
+            featureLayer.setStyle({fillOpacity: 0, opacity: 0});
+        }
+    });
+}
+
+// Call populateDropdown for each layer
+populateDropdown(layer_Districts_4, 'DIST_NAME', 'districtFilter');
+populateDropdown(layer_Subdivisions_3, 'Name', 'subdivisionFilter');
+populateDropdown(layer_Blocks_2, 'BLOCK_NAME', 'blockFilter');
+populateDropdown(layer_GP_1, 'GP_NAME', 'gpFilter');
+
+// Event listeners for filtering on selection
+document.getElementById('districtFilter').addEventListener('change', function() {
+    applyFilter(layer_Districts_4, 'DIST_NAME', 'districtFilter');
+});
+
+document.getElementById('subdivisionFilter').addEventListener('change', function() {
+    applyFilter(layer_Subdivisions_3, 'Name', 'subdivisionFilter');
+});
+
+document.getElementById('blockFilter').addEventListener('change', function() {
+    applyFilter(layer_Blocks_2, 'BLOCK_NAME', 'blockFilter');
+});
+
+document.getElementById('gpFilter').addEventListener('change', function() {
+    applyFilter(layer_GP_1, 'GP_NAME', 'gpFilter');
+});
+        var baseMaps = {};
+        var overlaysTree = [
+            {label: '<img src="legend/Districts_4.png" /> Districts', layer: layer_Districts_4},
+            {label: '<img src="legend/Subdivisions_3.png" /> Subdivisions', layer: layer_Subdivisions_3},
+            {label: '<img src="legend/Blocks_2.png" /> Blocks', layer: layer_Blocks_2},
+            {label: '<img src="legend/GP_1.png" /> GP', layer: layer_GP_1},
+            {label: "OpenStreetMap", layer: layer_OpenStreetMap_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: false, 
+        });
+        lay.addTo(map);
+        setBounds();
+        </script>
+    </body>
+</html>
